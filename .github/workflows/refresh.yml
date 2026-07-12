@@ -1,0 +1,56 @@
+name: Refresh Playlist
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate playlist
+        env:
+          CONFIG: ${{ secrets.CONFIG }}
+        run: |
+          python3 generator.py \
+            --output playlist.m3u \
+            --group-mode auto \
+            --lang it \
+            --country IT
+
+      - name: Show stats
+        run: |
+          echo "=== Playlist ==="
+          wc -l playlist.m3u
+          echo ""
+          echo "=== Prime 30 righe ==="
+          head -30 playlist.m3u
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add playlist.m3u
+          if git diff --cached --quiet; then
+            echo "Nessun cambiamento. Skip commit."
+          else
+            TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            git commit -m "chore: refresh playlist [skip ci]"
+            git push
+            echo "Push completato."
+          fi
